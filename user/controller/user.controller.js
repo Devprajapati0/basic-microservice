@@ -2,6 +2,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/user.model.js';
 import dotenv from 'dotenv';
+import { subscribeToQueue } from '../service/rabbit.js';
+import { EventEmitter } from 'events';
+const rideEventEmitter = new EventEmitter();
 dotenv.config();
 
 const register = async (req, res) => {
@@ -106,9 +109,29 @@ const profile = async (req, res) => {
         res.status(500).json({ message: 'Error fetching user profile', error: error.message });
     }
 }
+
+///long pooling
+
+const acceptedRide = async(req,res)=>{
+ rideEventEmitter.once('ride-accepted',(data) => {
+    res.send(data);
+ })
+
+ setTimeout(() => {
+    res.status(204).send();
+ },30000)
+}
+
+subscribeToQueue('ride-accepted', async (message) => {
+    const rideData = JSON.parse(message);
+    console.log('Ride accepted:', rideData);
+    rideEventEmitter.emit('ride-accepted', rideData);
+}
+);
 export {
     register,
     login,
     logout,
-    profile
+    profile,
+    acceptedRide
 }
